@@ -1,4 +1,7 @@
+import axios from 'axios';
 import { useState } from 'react';
+import { BASE_URL, KEY } from './constants';
+import Spinner from './Spinner';
 
 const WeatherComponent = () => {
 
@@ -11,66 +14,74 @@ const WeatherComponent = () => {
 		fontWeight: "bold",
 	};
 
-	const mockWeatherData = {
-		'New York': {
-			temperature: '22°C',
-			humidity: '56%',
-			windSpeed: '15 km/h'
-		},
-		'Los Angeles': {
-			temperature: '27°C',
-			humidity: '45%',
-			windSpeed: '10 km/h'
-		},
-		'London': {
-			temperature: '15°C',
-			humidity: '70%',
-			windSpeed: '20 km/h'
-		},
-	};
-
 	const [searchCity, setSearchCity] = useState('');
 	const [foundCity,setFoundCity] = useState({});
 	const [searchFlag, setSearchFlag] = useState(false);
-	const [prevCities, setPrevCities] = useState([]);
+	const [loading, setLoading] = useState(false);
+	const [errorMessage, setErrorMessage] = useState('');
 
-	const handleCitySearch = () =>{
-		const citySearched = mockWeatherData[searchCity];
-		if (citySearched) {
-			setFoundCity(citySearched);
-			if (!prevCities.includes(searchCity))
-				setPrevCities([...prevCities, searchCity]);
-		} else {
-			setFoundCity({});
+	const handleSearchClick = () => {
+		if (searchCity.toLowerCase() !== foundCity.city)
+			handleCitySearch();
+	};
+
+	const handleCitySearch = () => {
+		if (!searchFlag && searchCity !== '') {
+			setLoading(true);
 		}
-		setSearchFlag(true);
+		console.log("Hello");
+		if (searchCity !== '') {
+			axios.get(`${BASE_URL}?key=${KEY}&q=${searchCity}&aqi=no`)
+			.then((res) => {
+				const weatherData = res?.data;
+				if (weatherData?.location?.name?.toLowerCase() !== searchCity?.toLowerCase()) {
+					throw new Error("City not found, try again.");
+				}
+				setFoundCity({
+					temperature: weatherData?.current?.temp_c,
+					humidity: weatherData?.current?.humidity,
+					windSpeed: weatherData?.current?.wind_kph,
+					city: weatherData?.location?.name?.toLowerCase()
+				});
+				setErrorMessage('');
+			}).catch((err) => {
+				setErrorMessage(err.message);
+				setFoundCity({
+					city: searchCity.toLowerCase()
+				});
+			}).finally(()=> {
+				setSearchFlag(true);
+				setLoading(false);
+			});
+		} else {
+			setSearchFlag(true);
+			setErrorMessage("Please enter valid city name.");
+		}
 	}	
 
-	const handleCityChange = (city, clickFlag) => {
+	const handleCityChange = (city) => {
 		setSearchCity(city);
-		setFoundCity({});
 		setSearchFlag(false);
-		if (clickFlag) {
-			handleCitySearch();
-		}
-	}
+	};
 
 	return (
 		<div className="container-xl">
 			<h1 style={heading}>Weather Application</h1>
 			<div className="input-group mb-3">
 				<input type="text" className="form-control" placeholder="Type your city name..." value={searchCity} onChange={(e)=>handleCityChange(e.target.value)} aria-label="Recipient's username" aria-describedby="button-addon2"/>
-				<button className="btn btn-outline-success" type="button" id="button-addon2" onClick={handleCitySearch}>Search</button>
+				<button className="btn btn-outline-success" type="button" id="button-addon2" onClick={handleSearchClick}>Search</button>
 			</div>
-			{searchFlag && <div style={{color:"green"}}>
-				{Object.keys(foundCity).length === 0 ? <div style={{color:"red"}}> City not found, try again. </div> : (
-					<>
-						<div>Temperature: <span style={boldFont}>{foundCity.temperature}</span></div>
-						<div>Humidity: <span style={boldFont}>{foundCity.humidity}</span></div>
-						<div>Wind Speed: <span style={boldFont}>{foundCity.windSpeed}</span></div>
-					</>
-				)}
-			</div>}
+			{searchFlag &&
+				<div style={{color:"green"}}>
+					{errorMessage !== '' ? <div style={{color:"red"}}>{errorMessage}</div> : (
+						<>
+							<div>Temperature: <span style={boldFont}>{foundCity.temperature}</span></div>
+							<div>Humidity: <span style={boldFont}>{foundCity.humidity}</span></div>
+							<div>Wind Speed: <span style={boldFont}>{foundCity.windSpeed}</span></div>
+						</>
+					)}
+				</div>}
+			{loading && <Spinner/>}
 		</div>
 	);
 }
